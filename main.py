@@ -3,12 +3,36 @@ import time
 import numpy as np
 import torch
 import threading
+from playsound import playsound  # Using playsound for simple audio playback
+
 from models.ssd_detector import SSDDetector
 from models.dvt_classifier import DynamicVisionTransformer
 from utils.camera_utils import Camera
 from utils.audio_utils import AudioFeedback
 from utils.object_tracker import ObjectTracker
 from config import DETECTION_FREQUENCY, FRAME_WIDTH, FRAME_HEIGHT
+
+# Load audio files for proximity alerts
+VERY_CLOSE_SOUND = "audio/obstacle_very_close.mp3"
+NEAR_SOUND = "audio/obstacle_near.mp3"
+FAR_SOUND = "audio/obstacle_far.mp3"
+
+def play_proximity_alert(distance):
+    """
+    Plays different warning sounds based on object proximity.
+    - distance < 1.0m -> Very Close Alert
+    - 1.0m <= distance < 3.0m -> Near Alert
+    - distance >= 3.0m -> Far Alert (optional)
+    """
+    try:
+        if distance < 1.0:
+            playsound(VERY_CLOSE_SOUND, block=False)
+        elif distance < 3.0:
+            playsound(NEAR_SOUND, block=False)
+        else:
+            playsound(FAR_SOUND, block=False)
+    except Exception as e:
+        print(f"Error playing sound: {e}")
 
 class EchoStride:
     def __init__(self):
@@ -43,6 +67,10 @@ class EchoStride:
             
             # Announce detected objects
             self.audio.announce_objects(enhanced_detections, FRAME_WIDTH, FRAME_HEIGHT)
+
+            # Play proximity alerts
+            for label, confidence, box, (position, distance) in enhanced_detections:
+                threading.Thread(target=play_proximity_alert, args=(distance,), daemon=True).start()
             
             self.last_detection_time = current_time
             
